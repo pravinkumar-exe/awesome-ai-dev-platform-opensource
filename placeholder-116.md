@@ -12,21 +12,51 @@ The endpoint is accessible to any authenticated user and leaks sensitive informa
 
 This information should be restricted to admin or internal backend services only.
 
----
 
-## 🛠️ Proposed Fix
+ ##Proposed Code-Based Fix (FastAPI + RBAC Example)
+Assuming the backend is written in Python (FastAPI or similar) and uses a user object with role or is_admin flags:
 
-To address this issue securely:
+```
+from fastapi import APIRouter, Depends, HTTPException, status
+from typing import List
+from app.dependencies import get_current_user  # assumes auth dependency exists
+from app.models import User  # assumed user model
 
-- Apply strict **role-based access control (RBAC)** so only privileged (admin) users can access this endpoint.
-- If a non-privileged user attempts to access the endpoint "https://app.aixblock.io/api/settings/installation-service/", return a `403 Forbidden` response.
+router = APIRouter()
 
-### Example Response for Unauthorized Access:
+@router.get("/api/settings/installation-service/", tags=["Admin Settings"])
+async def get_installation_service_settings(current_user: User = Depends(get_current_user)):
+    # ✅ Check if user is admin
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to perform this action."
+        )
+    
+    # Fetch internal service metadata only for admin users
+    return {
+        "service_name": "Aixblock Platform",
+        "docker_images": ["aixblock/platform:v1.2", "aixblock/worker:v1.1"],
+        "registry_url": "registry.aixblock.io",
+        "environment": "dev",
+        "service_version": "1.2.0"
+    }
+```
+Explanation:
 
-```http
-HTTP/2 403 Forbidden
-{
-  "status_code": 403,
-  "detail": "You do not have permission to perform this action."
-}
+- get_current_user: assumed auth dependency that fetches the authenticated user.
+
+- current_user.is_admin: check to ensure only admin users can access this.
+
+- Returns 403 Forbidden if unauthorized.
+
+**Alternative Role-Based Model (If Using Roles)**
+If your system uses role strings like "admin" / "user":
+
+```
+if current_user.role != "admin":
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="You do not have permission to perform this action."
+    )
 ```
